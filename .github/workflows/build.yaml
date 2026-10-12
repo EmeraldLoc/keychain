@@ -20,10 +20,10 @@ jobs:
             image: windows-2022
             platform: windows
           - name: macOS (Intel)
-            image: macos-13
+            image: macos-15-intel
             platform: macos-intel
           - name: macOS (ARM64)
-            image: macos-14
+            image: macos-15
             platform: macos-arm
           - name: Linux (x64)
             image: ubuntu-22.04
