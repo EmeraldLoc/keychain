@@ -1,0 +1,81 @@
+name: Build and Upload Artifacts
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build (${{ matrix.os.name }})
+    runs-on: ${{ matrix.os.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - name: Windows (x64)
+            image: windows-2022
+            platform: windows
+          - name: macOS (Intel)
+            image: macos-13
+            platform: macos-intel
+          - name: macOS (ARM64)
+            image: macos-14
+            platform: macos-arm
+          - name: Linux (x64)
+            image: ubuntu-22.04
+            platform: linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: matrix.os.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsecret-1-dev
+
+      - name: Configure CMake (Unix / macOS / Linux)
+        if: matrix.os.platform != 'windows'
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+
+      - name: Configure CMake (Windows)
+        if: matrix.os.platform == 'windows'
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+
+      - name: Build Library
+        run: |
+          cmake --build build --config Release
+
+      - name: Prepare Artifact Directory
+        shell: bash
+        run: |
+          mkdir -p artifact_stage/include
+          mkdir -p artifact_stage/lib
+          
+          # Copy headers
+          cp -r include/* artifact_stage/include/
+          
+          # Copy compiled libraries/binaries based on OS
+          if [ "${{ matrix.os.platform }}" == "windows" ]; then
+            find build -name "*.lib" -exec cp {} artifact_stage/lib/ \;
+            find build -name "*.dll" -exec cp {} artifact_stage/lib/ \;
+          elif [[ "${{ matrix.os.platform }}" == macos* ]]; then
+            find build -name "*.a" -exec cp {} artifact_stage/lib/ \;
+            find build -name "*.dylib" -exec cp {} artifact_stage/lib/ \;
+          else
+            find build -name "*.a" -exec cp {} artifact_stage/lib/ \;
+            find build -name "*.so" -exec cp {} artifact_stage/lib/ \;
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keychain-${{ matrix.os.platform }}
+          path: artifact_stage/
